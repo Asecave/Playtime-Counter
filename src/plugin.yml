@@ -1,0 +1,11 @@
+main: com.asecave.PlaytimeCounter
+name: PlaytimeCounter
+version: 1.0
+api-version: 1.18
+author: Asecave
+
+commands:
+   playtime:
+      description: Displays the playtime of a given player
+      usage: /playtime <player>
+      permission: playtime.playtimeGetter
