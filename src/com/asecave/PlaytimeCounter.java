@@ -2,20 +2,30 @@ package com.asecave;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.event.EventHandler;
+import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scoreboard.DisplaySlot;
+import org.bukkit.scoreboard.Objective;
 
 public class PlaytimeCounter extends JavaPlugin implements Listener {
 	
 	public static List<Playtime> playtimes;
 	
+	public static Logger logger = Bukkit.getLogger();
+	
+	public static PlaytimeCounter instance;
+	
+	private Objective objective;
+	
 	@Override
 	public void onEnable() {
+		
+		instance = this;
 		
 		getServer().getPluginManager().registerEvents(this, this);
 		
@@ -24,57 +34,75 @@ public class PlaytimeCounter extends JavaPlugin implements Listener {
 		saveDefaultConfig();
 		
 		playtimes = new ArrayList<Playtime>();
-	}
-	
-	@EventHandler
-	private void playerJoin(PlayerJoinEvent e) {
-		FileConfiguration config = getConfig();
-		List<String> times = config.getStringList("Playtimes");
-		boolean found = false;
-		for (String s : times) {
-			String[] split = s.split(";");
-			String uuid = split[0];
-			long time = Long.parseLong(split[1]);
-			if (uuid.equals(e.getPlayer().getUniqueId().toString())) {
-				playtimes.add(new Playtime(uuid, time));
-				found = true;
-				break;
+		
+		Bukkit.getScheduler().scheduleSyncRepeatingTask(this, new Runnable() {
+			
+			@Override
+			public void run() {
+				// Find players that are on the server but not in the playtime tracker
+				FileConfiguration config = getConfig();
+				List<String> times = config.getStringList("Playtimes");
+				for (Player p : getServer().getOnlinePlayers()) {
+					boolean found = false;
+					for (Playtime pt : playtimes) {
+						if (p.getUniqueId().toString().equals(pt.getUUID())) {
+							found = true;
+							break;
+						}
+					}
+					if (!found) {
+						boolean hasPlaytime = false;
+						for (String s : times) {
+							String[] split = s.split(";");
+							String uuid = split[0];
+							long time = Long.parseLong(split[1]);
+							if (uuid.equals(p.getUniqueId().toString())) {
+								playtimes.add(new Playtime(uuid, time, p.getDisplayName()));
+								hasPlaytime = true;
+								break;
+							}
+						}
+						if (!hasPlaytime) {
+							playtimes.add(new Playtime(p.getUniqueId().toString(), 0, p.getDisplayName()));
+						}
+						logger.info("Picked up playtime tracking for " + p.getDisplayName());
+					}
+				}
+				
+				// Autosave
+				for (Playtime pt : playtimes) {
+					for (int i = 0; i < times.size(); i++) {
+						if (times.get(i).startsWith(pt.getUUID())) {
+							times.remove(i);
+						}
+					}
+					times.add(pt.getUUID() + ";" + pt.getTotalTime());
+					objective.getScore(pt.getDisplayName()).setScore((int) (pt.getTotalTime() / 3600000));
+				}
+				config.set("Playtimes", times);
+				saveConfig();
+				
+				// Remove offline players from playtime tracker
+				for (int i = 0; i < playtimes.size(); i++) {
+					Player p = null;
+					for (Player sp : getServer().getOnlinePlayers()) {
+						if (sp.getUniqueId().toString().equals(playtimes.get(i).getUUID())) {
+							p = sp;
+							break;
+						}
+					}
+					if (p == null) {
+						logger.info("Released playtime tracking for " + playtimes.get(i).getDisplayName());
+						playtimes.remove(i);
+					}
+				}
 			}
+		}, 0, 100);
+		
+		objective = getServer().getScoreboardManager().getMainScoreboard().getObjective("playtime");
+		if (objective == null) {
+			objective = getServer().getScoreboardManager().getMainScoreboard().registerNewObjective("playtime", "dummy", "Playtime");
 		}
-		if (!found) {
-			playtimes.add(new Playtime(e.getPlayer().getUniqueId().toString(), 0));
-		}
-	}
-	
-	@EventHandler
-	private void playerLeave(PlayerQuitEvent e) {
-		savePlaytime(e.getPlayer().getUniqueId().toString());
-	}
-	
-	@Override
-	public void onDisable() {
-		for (int i = 0; i < playtimes.size(); i++) {
-			savePlaytime(playtimes.get(i).getUUID());
-		}
-	}
-	
-	private void savePlaytime(String uuid) {
-		FileConfiguration config = getConfig();
-		List<String> list = config.getStringList("Playtimes");
-		for (int i = 0; i < list.size(); i++) {
-			if (list.get(i).startsWith(uuid)) {
-				list.remove(i);
-			}
-		}
-		for (int i = 0; i < playtimes.size(); i++) {
-			Playtime pt = playtimes.get(i);
-			if (pt.getUUID().equals(uuid)) {
-				list.add(pt.getUUID() + ";" + pt.getTotalTime());
-				config.set("Playtimes", list);
-				playtimes.remove(i);
-				break;
-			}
-		}
-		saveConfig();
+		objective.setDisplaySlot(DisplaySlot.PLAYER_LIST);
 	}
 }

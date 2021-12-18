@@ -5,11 +5,13 @@ public class Playtime {
 	private String uuid;
 	private long timePlayed;
 	private long joinedAt;
+	private String displayName;
 	
-	public Playtime(String uuid, long timePlayed) {
+	public Playtime(String uuid, long timePlayed, String displayName) {
 		this.uuid = uuid;
 		this.timePlayed = timePlayed;
 		joinedAt = System.currentTimeMillis();
+		this.displayName = displayName;
 	}
 
 	public String getUUID() {
@@ -30,5 +32,9 @@ public class Playtime {
 
 	public long getTotalTime() {
 		return System.currentTimeMillis() - joinedAt + timePlayed;
+	}
+	
+	public String getDisplayName() {
+		return displayName;
 	}
 }
