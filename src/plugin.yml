@@ -8,4 +8,8 @@ commands:
    playtime:
       description: Displays the playtime of a given player
       usage: /playtime <player>
-      permission: playtime.playtimeGetter
+      permission: playtime.playtime
+      
+permissions:
+   playtime.playtime:
+      default: true
